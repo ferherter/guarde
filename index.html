@@ -4,14 +4,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Parte Comedor</title>
 <style>
-  body{font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; max-width: 720px; margin: 24px auto; padding: 0 16px;}
-  header{display:flex; align-items:center; gap:12px; margin-bottom:16px}
-  h1{font-size: 1.4rem; margin: 0}
-  .row{margin: 12px 0}
-  .hint{color:#666; font-size:.9rem}
-  .card{border:1px solid #ddd; border-radius:12px; padding:12px}
-  button{padding:10px 14px; border-radius:10px; border:1px solid #ddd; cursor:pointer}
-  button[disabled]{opacity:.6; cursor:not-allowed}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;max-width:720px;margin:24px auto;padding:0 16px}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  h1{font-size:1.4rem;margin:0}
+  .row{margin:12px 0}
+  .hint{color:#666;font-size:.9rem}
+  .card{border:1px solid #ddd;border-radius:12px;padding:12px}
+  button{padding:10px 14px;border-radius:10px;border:1px solid #ddd;cursor:pointer}
+  button[disabled]{opacity:.6;cursor:not-allowed}
   #msg{margin-top:12px}
   .ok{color:#0a7a27}
   .err{color:#b00020}
@@ -57,7 +57,7 @@
 </div>
 
 <script>
-const API_BASE = "https://script.google.com/macros/s/AKfycbxpVfTIt6FzpEuUvhBZUkq6cV0CvaBxgPyd_HNYgnyPGetS4zHEXxKm7v1Jv3WhLm7vtA/exec";// <-- URL /exec de GOogle Pages
+const API_BASE = "https://script.google.com/macros/s/AKfycbxpVfTIt6FzpEuUvhBZUkq6cV0CvaBxgPyd_HNYgnyPGetS4zHEXxKm7v1Jv3WhLm7vtA/exec";
 
 let CLASES=[], ALUMNOS=[];
 const $ = (s)=>document.querySelector(s);
@@ -68,23 +68,35 @@ function todayStr(){
   return `${y}-${m}-${dd}`;
 }
 
-async function loadMeta(){
-  try{
-    const r = await fetch(API_BASE + "?tipo=meta", {cache:"no-store"});
-    const j = await r.json();
-    CLASES = j.clases || [];
-    ALUMNOS = j.alumnos || [];
-    const sel = $('#clase');
-    sel.innerHTML = CLASES.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
-    // Preselección por query ?clase_id=C1
-    const url = new URL(location.href);
-    const pre = url.searchParams.get('clase_id');
-    if (pre && CLASES.some(c=>c.id===pre)) sel.value = pre;
-    renderAlumnos();
-  }catch(e){
-    $('#alumnos').innerHTML = `<span class="err">Error cargando metadatos: ${e}</span>`;
-  }
+function loadMetaJSONP(){
+  const cbName = "meta_cb_" + Math.random().toString(36).slice(2);
+  const s = document.createElement('script');
+  window[cbName] = (data)=>{
+    try{
+      CLASES = data.clases || [];
+      ALUMNOS = data.alumnos || [];
+      const sel = $('#clase');
+      sel.innerHTML = CLASES.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+      const url = new URL(location.href);
+      const pre = url.searchParams.get('clase_id');
+      if (pre && CLASES.some(c=>c.id===pre)) sel.value = pre;
+      renderAlumnos();
+    } finally {
+      delete window[cbName];
+      s.remove();
+    }
+  };
+  s.src = `${API_BASE}?tipo=meta&callback=${cbName}`;
+  s.onerror = ()=>{ $('#alumnos').innerHTML = '<span class="err">Error cargando metadatos.</span>'; };
+  document.head.appendChild(s);
 }
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  $('#fecha').value = todayStr();
+  loadMetaJSONP();
+  $('#clase').addEventListener('change', renderAlumnos);
+  $('#guardar').addEventListener('click', guardar);
+});
 
 function renderAlumnos(){
   const cid = $('#clase').value;
@@ -107,11 +119,8 @@ function updateCount(){
   $('#count').textContent = n;
 }
 
-async function checkLectivo(fecha){
-  // No tenemos un endpoint dedicado, así que dejamos que el backend valide en el POST.
-  // Aquí solo deshabilitamos UI si el último POST nos dijo "no lectivo".
-  // Si quieres, más adelante añadimos /is_lectivo.
-  return true;
+async function checkLectivo(_fecha){
+  return true; // validamos en el backend
 }
 
 async function guardar(){
@@ -149,5 +158,6 @@ async function guardar(){
     btn.disabled = false;
   }
 }
-
-doc
+</script>
+</body>
+</html>
