@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reportes Comedor</title>
+<style>
+  body{font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; max-width: 900px; margin: 24px auto; padding: 0 16px;}
+  header{display:flex; align-items:center; gap:12px; margin-bottom:16px}
+  h1{font-size: 1.4rem; margin: 0}
+  button{padding:10px 14px; border-radius:10px; border:1px solid #ddd; cursor:pointer; margin-right:8px}
+  #out{margin-top:16px; border:1px solid #ddd; border-radius:12px; padding:16px; min-height:120px}
+</style>
+<body>
+<header>
+  <h1>Reportes de comedor</h1>
+</header>
+
+<div>
+  <label>Fecha base: <input type="date" id="fecha"></label>
+  <button data-modo="diario">Diario</button>
+  <button data-modo="semanal">Semanal</button>
+  <button data-modo="mensual">Mensual</button>
+</div>
+
+<div id="out">Selecciona un modo de reporte…</div>
+
+<script>
+const API_BASE = "https://script.google.com/macros/s/AKfycbxpVfTIt6FzpEuUvhBZUkq6cV0CvaBxgPyd_HNYgnyPGetS4zHEXxKm7v1Jv3WhLm7vtA/exec";
+
+function todayStr(){
+  const d=new Date();
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+
+async function cargar(modo){
+  const fecha = document.querySelector('#fecha').value || todayStr();
+  const url = `${API_BASE}?tipo=reporte&modo=${modo}&fecha=${fecha}`;
+  const r = await fetch(url, {cache:"no-store"});
+  const html = await r.text();
+  document.querySelector('#out').innerHTML = html;
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelector('#fecha').value = todayStr();
+  document.querySelectorAll('button[data-modo]').forEach(b=>{
+    b.addEventListener('click', ()=>cargar(b.dataset.modo));
+  });
+});
+</script>
+</body>
+</html>

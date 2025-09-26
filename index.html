@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Parte Comedor</title>
+<style>
+  body{font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; max-width: 720px; margin: 24px auto; padding: 0 16px;}
+  header{display:flex; align-items:center; gap:12px; margin-bottom:16px}
+  h1{font-size: 1.4rem; margin: 0}
+  .row{margin: 12px 0}
+  .hint{color:#666; font-size:.9rem}
+  .card{border:1px solid #ddd; border-radius:12px; padding:12px}
+  button{padding:10px 14px; border-radius:10px; border:1px solid #ddd; cursor:pointer}
+  button[disabled]{opacity:.6; cursor:not-allowed}
+  #msg{margin-top:12px}
+  .ok{color:#0a7a27}
+  .err{color:#b00020}
+  .count{font-weight:bold}
+</style>
+
+<body>
+<header>
+  <h1>Parte de comedor — Ausentes</h1>
+</header>
+
+<div class="row">
+  <label>Clase:
+    <select id="clase"></select>
+  </label>
+</div>
+
+<div class="row">
+  <label>Fecha:
+    <input type="date" id="fecha" />
+  </label>
+  <div class="hint">Marca únicamente el alumnado que <strong>NO</strong> va a comedor.</div>
+</div>
+
+<div id="lectivo_warn" class="row" style="display:none;">
+  <div class="card" style="border-color:#b00020;">
+    <strong>Aviso:</strong> La fecha seleccionada no es lectiva según el calendario. No podrás guardar el parte.
+  </div>
+</div>
+
+<div id="alumnos" class="row card">Cargando alumnado…</div>
+
+<div class="row">
+  <label>Observaciones:<br>
+    <textarea id="obs" rows="3" style="width:100%"></textarea>
+  </label>
+</div>
+
+<div class="row">
+  <button id="guardar">Guardar parte</button>
+  <span class="hint">Seleccionados: <span class="count" id="count">0</span></span>
+  <div id="msg"></div>
+</div>
+
+<script>
+const API_BASE = "https://script.google.com/macros/s/AKfycbxpVfTIt6FzpEuUvhBZUkq6cV0CvaBxgPyd_HNYgnyPGetS4zHEXxKm7v1Jv3WhLm7vtA/exec";// <-- URL /exec de GOogle Pages
+
+let CLASES=[], ALUMNOS=[];
+const $ = (s)=>document.querySelector(s);
+
+function todayStr(){
+  const d=new Date();
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+
+async function loadMeta(){
+  try{
+    const r = await fetch(API_BASE + "?tipo=meta", {cache:"no-store"});
+    const j = await r.json();
+    CLASES = j.clases || [];
+    ALUMNOS = j.alumnos || [];
+    const sel = $('#clase');
+    sel.innerHTML = CLASES.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    // Preselección por query ?clase_id=C1
+    const url = new URL(location.href);
+    const pre = url.searchParams.get('clase_id');
+    if (pre && CLASES.some(c=>c.id===pre)) sel.value = pre;
+    renderAlumnos();
+  }catch(e){
+    $('#alumnos').innerHTML = `<span class="err">Error cargando metadatos: ${e}</span>`;
+  }
+}
+
+function renderAlumnos(){
+  const cid = $('#clase').value;
+  const lista = ALUMNOS.filter(a=>a.clase_id===cid);
+  if(!lista.length){
+    $('#alumnos').innerHTML = `<em>No hay alumnos en esta clase.</em>`;
+    return;
+  }
+  $('#alumnos').innerHTML = lista.map(a=>`
+    <label style="display:block; padding:6px 0;">
+      <input type="checkbox" class="al-chk" value="${a.id}"> ${a.nombre} — <strong>NO</strong> va
+    </label>
+  `).join('');
+  document.querySelectorAll('.al-chk').forEach(el=>el.addEventListener('change', updateCount));
+  updateCount();
+}
+
+function updateCount(){
+  const n = [...document.querySelectorAll('.al-chk:checked')].length;
+  $('#count').textContent = n;
+}
+
+async function checkLectivo(fecha){
+  // No tenemos un endpoint dedicado, así que dejamos que el backend valide en el POST.
+  // Aquí solo deshabilitamos UI si el último POST nos dijo "no lectivo".
+  // Si quieres, más adelante añadimos /is_lectivo.
+  return true;
+}
+
+async function guardar(){
+  const btn = $('#guardar');
+  const fecha = $('#fecha').value;
+  const clase_id = $('#clase').value;
+  if(!fecha){ $('#msg').innerHTML='<span class="err">Selecciona una fecha.</span>'; return; }
+  const ausentes = [...document.querySelectorAll('.al-chk:checked')].map(el=>el.value);
+  const observaciones = $('#obs').value.trim();
+
+  const payload = { fecha, clase_id, ausentes, observaciones };
+  btn.disabled = true; $('#msg').textContent = 'Guardando…';
+  try{
+    const r = await fetch(API_BASE, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const j = await r.json();
+    if(j.ok){
+      $('#msg').innerHTML = `<span class="ok">Guardado. Ausentes: ${j.saved}.</span>`;
+      document.querySelectorAll('.al-chk').forEach(el=>el.checked=false);
+      updateCount();
+      $('#obs').value='';
+      $('#lectivo_warn').style.display = 'none';
+    }else{
+      $('#msg').innerHTML = `<span class="err">${j.error || 'Error desconocido'}</span>`;
+      if((j.error||'').includes('no es lectiva')){
+        $('#lectivo_warn').style.display = 'block';
+      }
+    }
+  }catch(e){
+    $('#msg').innerHTML = `<span class="err">Error de red: ${e}</span>`;
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+doc
